@@ -22,6 +22,8 @@ namespace ClientChatControl.ModSystems
             ///pseudo-code... idk what the syntax is without hand-holding from Visual Studio
             capi.Event.ChatMessage += HandleChatMessages;
             cPlayer = capi.World.Player;
+
+            RegisterClientChatCommands();
         }
 
         private void LoadConfig()
@@ -57,7 +59,7 @@ namespace ClientChatControl.ModSystems
                 .BeginSubCommand("mute")
                     .BeginSubCommand("playername")
                     .WithDescription("Mutes a player given a player's name. Will be stored using their UID, so even if they change their name, it will be up-to-date. Player must be online! Duration is measured in minutes. Leave blank for forever.")
-                    .WithArgs(capi.ChatCommands.Parsers.OnlinePlayer("Player Name"), capi.ChatCommands.Parsers.OptionalInt("Duration"))
+                    .WithArgs(capi.ChatCommands.Parsers.Word("Player Name"), capi.ChatCommands.Parsers.OptionalInt("Duration"))
                     .HandleWith((args) => {
                         string placeholder = "";
                         if ((int)args[1] <= 0)
@@ -80,7 +82,7 @@ namespace ClientChatControl.ModSystems
 
                     .BeginSubCommand("playeruid")
                     .WithDescription("Mutes a player given a player's UID. Not recommended, as usually you won't have this. Use playername instead. Even if they change their name, it will be up-to-date. Duration is measured in minutes. Leave blank for forever.")
-                    .WithArgs(capi.ChatCommands.Parsers.PlayerUids("Player UID"), capi.ChatCommands.Parsers.OptionalInt("Duration"))
+                    .WithArgs(capi.ChatCommands.Parsers.Word("Player UID"), capi.ChatCommands.Parsers.OptionalInt("Duration"))
                     .HandleWith((args) => { return TextCommandResult.Success(); }
                         
                     )
@@ -194,11 +196,25 @@ namespace ClientChatControl.ModSystems
             /// 
 
             //We only want to block chat messages that are from other players, not server notifications or our own.
-            if (chattype == EnumChatType.OthersMessage) 
+            //TODO: Remove OwnMessage in final mod
+            if (chattype == EnumChatType.OthersMessage || chattype == EnumChatType.OwnMessage) 
             {
-                string senderPlayerName = "";
+                int usernameEndIndex = message.IndexOf(":");
+                int usernameBeginIndex = message.IndexOf("<strong>") + 8;
+                int length = usernameEndIndex - usernameBeginIndex;
+                string senderPlayerName = message.Substring(usernameBeginIndex, length);
                 //this command can be used to send a client-side notification to the player running the mod.
-                capi.ShowChatMessage("Blocked chat message from player " + senderPlayerName);
+
+                foreach (IPlayer player in capi.World.AllOnlinePlayers)
+                {
+                    foreach (string mutedUIDs in config.PlayerUIDsMuted.Keys)
+                    {
+                        if (Equals(player.PlayerUID, mutedUIDs))
+                        {
+                            capi.ShowChatMessage("Blocked chat message from player " + senderPlayerName);
+                        }
+                    }
+                }
             }
         }   
     }
